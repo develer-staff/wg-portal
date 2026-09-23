@@ -6,7 +6,7 @@ import {authStore} from '@/stores/auth'
 import {securityStore} from '@/stores/security'
 import {notify} from "@kyvg/vue3-notification";
 
-export const publicPages = ['/', '/login', '/key-generator', '/ip-calculator']
+export const publicPages = ['/login', '/key-generator', '/ip-calculator']
 
 const router = createRouter({
   // No base argument: createWebHashHistory() defaults to location.pathname + location.search,
