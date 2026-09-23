@@ -1,121 +1,47 @@
-name: Docker
+name: Release
 
 on:
-  pull_request:
-    branches: [master]
   push:
-    branches: [master]
-    # Publish vX.X.X tags as releases.
     tags: ["v*.*.*"]
 
 permissions:
-  contents: read
-  packages: write
+  contents: write
 
 jobs:
-  build-n-push:
-    name: Build and Push
+  release:
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repo
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@1f40c72289eff860ee54a304f1438e3cff362e0a # v4.3.0
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+
+      - name: Build frontend
+        run: make frontend
 
       - name: Get Version
         shell: bash
-        run: echo "BUILD_VERSION=${GITHUB_REF_NAME}-${GITHUB_SHA::7}" >> $GITHUB_ENV
+        run: echo "BUILD_VERSION=${GITHUB_REF_NAME}-${GITHUB_SHA::7}" >> "$GITHUB_ENV"
 
-      - name: Login to Docker Hub
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
-        with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
-      - name: Login to GitHub Container Registry
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
-        with:
-          images: |
-            wgportal/wg-portal
-            ghcr.io/${{ github.repository }}
-          flavor: |
-            latest=auto
-            prefix=
-            suffix=
-          tags: |
-            type=ref,event=tag
-            type=ref,event=branch
-            # semver tags, without v prefix
-            type=semver,pattern={{version}}
-            # major and major.minor tags are not available for alpha or beta releases
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=semver,pattern=v{{major}}.{{minor}}
-            type=semver,pattern=v{{major}}
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
-        with:
-          context: .
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          annotations: ${{ steps.meta.outputs.annotations }}
-          platforms: linux/amd64,linux/arm64,linux/arm/v7
-          build-args: |
-            BUILD_VERSION=${{ env.BUILD_VERSION }}
-
-      - name: Export binaries from images
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64,linux/arm/v7
-          target: binaries
-          outputs: type=local,dest=./binaries
-          build-args: |
-            BUILD_VERSION=${{ env.BUILD_VERSION }}
-
-      - name: Rename binaries
+      - name: Build Linux amd64 binary
         run: |
-          for file in binaries/linux*/wg-portal; do
-            mv $file binaries/wg-portal_$(basename $(dirname $file))
-          done
-
-      - name: Upload binaries
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: binaries
-          path: binaries/wg-portal_linux*
-          retention-days: 10
-
-  release:
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-    needs: build-n-push
-    permissions:
-      contents: write
-    steps:
-      - name: Download binaries
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: binaries
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+            -o wg-portal_linux_amd64 \
+            -ldflags "-w -s -extldflags '-static' -X 'github.com/h44z/wg-portal/internal.Version=${BUILD_VERSION}'" \
+            -tags netgo \
+            cmd/wg-portal/main.go
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
-          files: 'wg-portal_linux*'
-          generate_release_notes: true
+          files: wg-portal_linux_amd64
