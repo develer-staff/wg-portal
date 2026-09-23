@@ -457,7 +457,7 @@ onMounted(async () => {
             <span v-else :title="peer.Identifier">{{ $filters.truncate(peer.Identifier, 10)}}</span>
             <span v-if="peer.IsDynamic" class="badge bg-info-subtle text-info-emphasis ms-1 border border-info-subtle" :title="$t('interfaces.peer-dynamic')"><i class="fa-solid fa-robot me-1"></i>{{ $t('interfaces.peer-dynamic') }}</span>
           </td>
-          <td><span :title="peer.UserDisplayName">{{peer.UserIdentifier}}</span></td>
+          <td>{{peer.UserDisplayName}}</td>
           <td>
             <span v-for="ip in peer.Addresses" :key="ip" class="badge bg-light me-1">{{ ip }}</span>
           </td>
@@ -480,7 +480,7 @@ onMounted(async () => {
           </td>
           <td class="text-center">
             <a href="#" :title="$t('interfaces.button-show-peer')" @click.prevent="viewedPeerId=peer.Identifier"><i class="fas fa-eye me-2"></i></a>
-            
+
             <span v-if="peer.IsDynamic" :title="$t('interfaces.peer-dynamic-no-edit')" class="text-muted" style="cursor: not-allowed;">
               <i class="fas fa-cog"></i>
             </span>
