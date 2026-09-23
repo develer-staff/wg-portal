@@ -216,63 +216,6 @@ async function del() {
         </div>
       </fieldset>
       <fieldset>
-        <legend class="mt-4">{{ $t('modals.peer-edit.header-crypto') }}</legend>
-        <div class="form-group">
-          <label class="form-label mt-4">{{ $t('modals.peer-edit.private-key.label') }}</label>
-          <input type="text" class="form-control" :placeholder="$t('modals.peer-edit.private-key.placeholder')" required
-            v-model="formData.PrivateKey">
-          <small id="privateKeyHelp" class="form-text text-muted">{{ $t('modals.peer-edit.private-key.help') }}</small>
-        </div>
-        <div class="form-group">
-          <label class="form-label mt-4">{{ $t('modals.peer-edit.public-key.label') }}</label>
-          <input type="text" class="form-control" :placeholder="$t('modals.peer-edit.public-key.placeholder')" required
-            v-model="formData.PublicKey">
-        </div>
-        <div class="form-group">
-          <label class="form-label mt-4">{{ $t('modals.peer-edit.preshared-key.label') }}</label>
-          <input type="text" class="form-control" :placeholder="$t('modals.peer-edit.preshared-key.placeholder')"
-            v-model="formData.PresharedKey">
-        </div>
-      </fieldset>
-      <fieldset>
-        <legend class="mt-4">{{ $t('modals.peer-edit.header-network') }}</legend>
-        <div class="row">
-          <div class="form-group col-md-6">
-            <label class="form-label mt-4">{{ $t('modals.peer-edit.keep-alive.label') }}</label>
-            <input type="number" class="form-control" :placeholder="$t('modals.peer-edit.keep-alive.label')"
-              v-model="formData.PersistentKeepalive.Value">
-          </div>
-          <div class="form-group col-md-6">
-            <label class="form-label mt-4">{{ $t('modals.peer-edit.mtu.label') }}</label>
-            <input type="number" class="form-control" :placeholder="$t('modals.peer-edit.mtu.label')"
-              v-model="formData.Mtu.Value">
-          </div>
-        </div>
-      </fieldset>
-      <fieldset>
-        <legend class="mt-4">{{ $t('modals.peer-edit.header-hooks') }}</legend>
-        <div class="form-group">
-          <label class="form-label mt-4">{{ $t('modals.peer-edit.pre-up.label') }}</label>
-          <textarea v-model="formData.PreUp.Value" class="form-control" rows="2"
-            :placeholder="$t('modals.peer-edit.pre-up.placeholder')"></textarea>
-        </div>
-        <div class="form-group">
-          <label class="form-label mt-4">{{ $t('modals.peer-edit.post-up.label') }}</label>
-          <textarea v-model="formData.PostUp.Value" class="form-control" rows="2"
-            :placeholder="$t('modals.peer-edit.post-up.placeholder')"></textarea>
-        </div>
-        <div class="form-group">
-          <label class="form-label mt-4">{{ $t('modals.peer-edit.pre-down.label') }}</label>
-          <textarea v-model="formData.PreDown.Value" class="form-control" rows="2"
-            :placeholder="$t('modals.peer-edit.pre-down.placeholder')"></textarea>
-        </div>
-        <div class="form-group">
-          <label class="form-label mt-4">{{ $t('modals.peer-edit.post-down.label') }}</label>
-          <textarea v-model="formData.PostDown.Value" class="form-control" rows="2"
-            :placeholder="$t('modals.peer-edit.post-down.placeholder')"></textarea>
-        </div>
-      </fieldset>
-      <fieldset>
         <legend class="mt-4">{{ $t('modals.peer-edit.header-state') }}</legend>
         <div class="row">
           <div class="form-group col-md-6">
