@@ -66,7 +66,7 @@ watch(() => props.visible, async (newValue, oldValue) => {
       await peers.PreparePeer(selectedInterface.value.Identifier)
 
       formData.value.Identifier = peers.Prepared.Identifier
-      formData.value.DisplayName = peers.Prepared.DisplayName
+      formData.value.DisplayName = ""
       formData.value.UserIdentifier = peers.Prepared.UserIdentifier
       formData.value.InterfaceIdentifier = peers.Prepared.InterfaceIdentifier
       formData.value.Disabled = peers.Prepared.Disabled
@@ -211,7 +211,7 @@ async function del() {
         <legend class="mt-4">{{ $t('modals.peer-edit.header-general') }}</legend>
         <div class="form-group">
           <label class="form-label mt-4">{{ $t('modals.peer-edit.display-name.label') }}</label>
-          <input type="text" class="form-control" :placeholder="$t('modals.peer-edit.display-name.placeholder')"
+          <input type="text" class="form-control" :placeholder="$t('modals.peer-edit.display-name.placeholder')" required
             v-model="formData.DisplayName">
         </div>
       </fieldset>
@@ -311,7 +311,7 @@ async function del() {
           {{ $t('general.delete') }}
         </button>
       </div>
-      <button class="btn btn-primary me-1" type="button" @click.prevent="save" :disabled="isSaving">
+      <button class="btn btn-primary me-1" type="button" @click.prevent="save" :disabled="isSaving || !formData.DisplayName.trim()">
         <span v-if="isSaving" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
         {{ $t('general.save') }}
       </button>
