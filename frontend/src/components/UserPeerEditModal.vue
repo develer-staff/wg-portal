@@ -215,6 +215,17 @@ async function del() {
             v-model="formData.DisplayName">
         </div>
       </fieldset>
+      <div class="accordion mt-4" id="userPeerEditAdvanced">
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="userPeerEditAdvancedHeading">
+            <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse"
+              data-bs-target="#userPeerEditAdvancedContent" aria-expanded="false" aria-controls="userPeerEditAdvancedContent">
+              {{ $t('modals.peer-edit.header-advanced') }}
+            </button>
+          </h2>
+          <div id="userPeerEditAdvancedContent" class="accordion-collapse collapse" aria-labelledby="userPeerEditAdvancedHeading"
+            data-bs-parent="#userPeerEditAdvanced">
+            <div class="accordion-body">
       <fieldset>
         <legend class="mt-4">{{ $t('modals.peer-edit.header-crypto') }}</legend>
         <div class="form-group">
@@ -272,6 +283,10 @@ async function del() {
             :placeholder="$t('modals.peer-edit.post-down.placeholder')"></textarea>
         </div>
       </fieldset>
+            </div>
+          </div>
+        </div>
+      </div>
       <fieldset>
         <legend class="mt-4">{{ $t('modals.peer-edit.header-state') }}</legend>
         <div class="row">

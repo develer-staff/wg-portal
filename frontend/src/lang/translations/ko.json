@@ -429,6 +429,7 @@
       "headline-new-peer": "피어 생성",
       "headline-new-endpoint": "엔드포인트 생성",
       "header-general": "일반",
+      "header-advanced": "고급",
       "header-network": "네트워크",
       "header-crypto": "암호화",
       "header-hooks": "후크 (피어에서 실행됨)",

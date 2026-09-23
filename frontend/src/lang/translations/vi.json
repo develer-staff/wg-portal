@@ -389,6 +389,7 @@
       "headline-new-peer": "Tạo Peer mới",
       "headline-new-endpoint": "Tạo Endpoint mới",
       "header-general": "Chung",
+      "header-advanced": "Nâng cao",
       "header-network": "Mạng",
       "header-crypto": "Mã hóa",
       "header-hooks": "Kẹp (Thực thi trên Peer)",

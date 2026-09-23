@@ -449,6 +449,7 @@
       "headline-new-peer": "Criar peer",
       "headline-new-endpoint": "Criar endpoint",
       "header-general": "Geral",
+      "header-advanced": "Avançado",
       "header-network": "Rede",
       "header-crypto": "Criptografia",
       "header-hooks": "Hooks (Executados no Peer)",

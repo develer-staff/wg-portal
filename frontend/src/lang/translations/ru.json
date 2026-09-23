@@ -524,6 +524,7 @@
       "headline-new-peer": "Создать пира",
       "headline-new-endpoint": "Создать конечную точку",
       "header-general": "Общее",
+      "header-advanced": "Расширенные",
       "header-network": "Сеть",
       "header-crypto": "Криптография",
       "header-hooks": "Хуки (Выполняются на пире)",

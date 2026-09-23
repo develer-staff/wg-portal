@@ -389,6 +389,7 @@
       "headline-new-peer": "创建节点",
       "headline-new-endpoint": "创建节点",
       "header-general": "常规",
+      "header-advanced": "高级",
       "header-network": "网络",
       "header-crypto": "加密",
       "header-hooks": "Hooks (在节点执行)",

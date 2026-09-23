@@ -411,6 +411,7 @@
       "headline-new-peer": "Créer un pair",
       "headline-new-endpoint": "Créer un point de terminaison",
       "header-general": "Général",
+      "header-advanced": "Avancé",
       "header-network": "Réseau",
       "header-crypto": "Cryptographie",
       "header-hooks": "Hooks (exécutés sur le pair)",

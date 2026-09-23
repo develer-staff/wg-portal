@@ -411,6 +411,7 @@
       "headline-new-peer": "Створити пір",
       "headline-new-endpoint": "Створити кінцеву точку",
       "header-general": "Загальне",
+      "header-advanced": "Додатково",
       "header-network": "Мережа",
       "header-crypto": "Криптографія",
       "header-hooks": "Хуки (виконуються на пірі)",

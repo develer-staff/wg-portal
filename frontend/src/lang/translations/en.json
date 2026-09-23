@@ -555,6 +555,7 @@
       "headline-new-peer": "Create peer",
       "headline-new-endpoint": "Create endpoint",
       "header-general": "General",
+      "header-advanced": "Advanced",
       "header-network": "Network",
       "header-crypto": "Cryptography",
       "header-hooks": "Hooks (Executed on Peer)",

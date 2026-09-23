@@ -544,6 +544,7 @@
       "headline-new-peer": "ピア作成",
       "headline-new-endpoint": "エンドポイント作成",
       "header-general": "全般",
+      "header-advanced": "詳細",
       "header-network": "ネットワーク",
       "header-crypto": "暗号化",
       "header-hooks": "フック (ピア側で実行)",
