@@ -296,11 +296,6 @@ async function del() {
               <label class="form-check-label">{{ $t('modals.peer-edit.disabled.label') }}</label>
             </div>
           </div>
-          <div class="form-group col-md-6">
-            <label class="form-label">{{ $t('modals.peer-edit.expires-at.label') }}</label>
-            <input type="date" pattern="\d{4}-\d{2}-\d{2}" class="form-control" min="2023-01-01"
-              v-model="formData.ExpiresAt">
-          </div>
         </div>
       </fieldset>
     </template>
