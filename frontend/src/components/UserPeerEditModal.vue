@@ -215,17 +215,6 @@ async function del() {
             v-model="formData.DisplayName">
         </div>
       </fieldset>
-      <fieldset>
-        <legend class="mt-4">{{ $t('modals.peer-edit.header-state') }}</legend>
-        <div class="row">
-          <div class="form-group col-md-6">
-            <div class="form-check form-switch">
-              <input class="form-check-input" type="checkbox" v-model="formData.Disabled">
-              <label class="form-check-label">{{ $t('modals.peer-edit.disabled.label') }}</label>
-            </div>
-          </div>
-        </div>
-      </fieldset>
     </template>
     <template #footer>
       <div class="flex-fill text-start">
