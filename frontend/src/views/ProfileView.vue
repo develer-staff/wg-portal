@@ -73,7 +73,7 @@ onMounted(async () => {
 
 <template>
   <PeerViewModal :peerId="viewedPeerId" :visible="viewedPeerId !== ''" @close="viewedPeerId = ''"></PeerViewModal>
-  <UserPeerEditModal :peerId="editPeerId" :visible="editPeerId !== ''" @close="editPeerId = ''; profile.LoadPeers()"></UserPeerEditModal>
+  <UserPeerEditModal :peerId="editPeerId" :visible="editPeerId !== ''" @close="editPeerId = ''; profile.LoadPeers()" @created="viewedPeerId = $event"></UserPeerEditModal>
 
   <!-- Peer list -->
   <div class="mt-4 row">

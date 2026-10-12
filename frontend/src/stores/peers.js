@@ -310,6 +310,7 @@ export const peerStore = defineStore('peers', {
         .then(peer => {
           this.peers.push(peer)
           this.fetching = false
+          return peer
         })
         .catch(error => {
           this.fetching = false
