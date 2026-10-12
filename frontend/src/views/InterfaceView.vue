@@ -166,7 +166,7 @@ onMounted(async () => {
 
 <template>
   <PeerViewModal :peerId="viewedPeerId" :visible="viewedPeerId!==''" @close="viewedPeerId=''"></PeerViewModal>
-  <PeerEditModal :peerId="editPeerId" :visible="editPeerId!==''" @close="editPeerId=''"></PeerEditModal>
+  <PeerEditModal :peerId="editPeerId" :visible="editPeerId!==''" @close="editPeerId=''" @created="viewedPeerId=$event"></PeerEditModal>
   <PeerMultiCreateModal :visible="multiCreatePeerId!==''" @close="multiCreatePeerId=''"></PeerMultiCreateModal>
   <InterfaceEditModal :interfaceId="editInterfaceId" :visible="editInterfaceId!==''" @close="editInterfaceId=''"></InterfaceEditModal>
   <InterfaceViewModal :interfaceId="viewedInterfaceId" :visible="viewedInterfaceId!==''" @close="viewedInterfaceId=''"></InterfaceViewModal>

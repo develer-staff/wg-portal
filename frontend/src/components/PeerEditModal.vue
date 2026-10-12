@@ -23,7 +23,7 @@ const props = defineProps({
   visible: Boolean,
 })
 
-const emit = defineEmits(['close'])
+const emit = defineEmits(['close', 'created'])
 
 const selectedPeer = computed(() => {
   let p = peers.Find(props.peerId)
@@ -275,12 +275,16 @@ async function save() {
   if (isSaving.value) return
   isSaving.value = true
   try {
+    let createdPeer
     if (props.peerId !== '#NEW#') {
       await peers.UpdatePeer(selectedPeer.value.Identifier, formData.value)
     } else {
-      await peers.CreatePeer(selectedInterface.value.Identifier, formData.value)
+      createdPeer = await peers.CreatePeer(selectedInterface.value.Identifier, formData.value)
     }
     close()
+    if (createdPeer) {
+      emit('created', createdPeer.Identifier)
+    }
   } catch (e) {
     notify({
       title: "Failed to save peer!",
