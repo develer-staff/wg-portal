@@ -332,19 +332,14 @@ func (m Manager) runExpiredPeersCheck(ctx context.Context) {
 }
 
 func (m Manager) checkExpiredPeers(ctx context.Context, peers []domain.Peer) {
-	now := time.Now()
-
 	for _, peer := range peers {
-		if peer.IsExpired() && !peer.IsDisabled() {
-			slog.Info("peer has expired, disabling", "peer", peer.Identifier)
+		if !peer.IsExpired() {
+			continue
+		}
 
-			peer.Disabled = &now
-			peer.DisabledReason = domain.DisabledReasonExpired
-
-			_, err := m.UpdatePeer(ctx, &peer)
-			if err != nil {
-				slog.Error("failed to update expired peer", "peer", peer.Identifier, "error", err)
-			}
+		slog.Info("peer has expired, deleting", "peer", peer.Identifier)
+		if err := m.deleteExpiredPeer(ctx, peer.Identifier); err != nil {
+			slog.Error("failed to delete expired peer", "peer", peer.Identifier, "error", err)
 		}
 	}
 }

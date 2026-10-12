@@ -13,6 +13,8 @@ import (
 	"github.com/h44z/wg-portal/internal/domain"
 )
 
+const peerLifetime = 365 * 24 * time.Hour
+
 // CreateDefaultPeer creates a default peer for the given user on all server interfaces.
 func (m Manager) CreateDefaultPeer(ctx context.Context, userId domain.UserIdentifier) error {
 	if !m.cfg.DefaultPeerCreationEnabled() {
@@ -285,6 +287,8 @@ func (m Manager) CreatePeer(ctx context.Context, peer *domain.Peer) (*domain.Pee
 		return nil, fmt.Errorf("creation not allowed: %w", err)
 	}
 
+	setPeerExpiration(peer)
+
 	err = m.savePeers(ctx, peer)
 	if err != nil {
 		return nil, fmt.Errorf("creation failure: %w", err)
@@ -322,6 +326,8 @@ func (m Manager) CreateMultiplePeers(
 		if err := m.validatePeerCreation(ctx, nil, freshPeer); err != nil {
 			return nil, fmt.Errorf("creation not allowed: %w", err)
 		}
+
+		setPeerExpiration(freshPeer)
 
 		// Save immediately to reserve the assigned IPs so the next prepared peer gets the next free IPs
 		if err := m.savePeers(ctx, freshPeer); err != nil {
@@ -368,6 +374,9 @@ func (m Manager) UpdatePeer(ctx context.Context, peer *domain.Peer) (*domain.Pee
 		peer = originalPeer
 	}
 
+	// A peer's expiry is fixed at creation time.
+	peer.ExpiresAt = existingPeer.ExpiresAt
+
 	// handle peer identifier change (new public key)
 	if existingPeer.Identifier != domain.PeerIdentifier(peer.Interface.PublicKey) {
 		peer.Identifier = domain.PeerIdentifier(peer.Interface.PublicKey) // set new identifier
@@ -411,6 +420,14 @@ func (m Manager) UpdatePeer(ctx context.Context, peer *domain.Peer) (*domain.Pee
 
 // DeletePeer deletes the peer with the given identifier.
 func (m Manager) DeletePeer(ctx context.Context, id domain.PeerIdentifier) error {
+	return m.deletePeer(ctx, id, false)
+}
+
+func (m Manager) deleteExpiredPeer(ctx context.Context, id domain.PeerIdentifier) error {
+	return m.deletePeer(ctx, id, true)
+}
+
+func (m Manager) deletePeer(ctx context.Context, id domain.PeerIdentifier, allowDynamic bool) error {
 	peer, err := m.db.GetPeer(ctx, id)
 	if err != nil {
 		return fmt.Errorf("unable to find peer %s: %w", id, err)
@@ -424,7 +441,7 @@ func (m Manager) DeletePeer(ctx context.Context, id domain.PeerIdentifier) error
 		return err
 	}
 
-	if err := m.validatePeerDeletion(ctx, peer); err != nil {
+	if err := m.validatePeerDeletion(ctx, peer, allowDynamic); err != nil {
 		return fmt.Errorf("delete not allowed: %w", err)
 	}
 
@@ -502,6 +519,11 @@ func (m Manager) GetUserPeerStats(ctx context.Context, id domain.UserIdentifier)
 }
 
 // region helper-functions
+
+func setPeerExpiration(peer *domain.Peer) {
+	expiresAt := time.Now().Add(peerLifetime)
+	peer.ExpiresAt = &expiresAt
+}
 
 func (m Manager) savePeers(ctx context.Context, peers ...*domain.Peer) error {
 	interfaces := make(map[domain.InterfaceIdentifier]domain.Interface)
@@ -651,8 +673,8 @@ func (m Manager) validatePeerCreation(ctx context.Context, _, new *domain.Peer) 
 	return nil
 }
 
-func (m Manager) validatePeerDeletion(ctx context.Context, peer *domain.Peer) error {
-	if peer != nil && peer.IsDynamic {
+func (m Manager) validatePeerDeletion(ctx context.Context, peer *domain.Peer, allowDynamic bool) error {
+	if peer != nil && peer.IsDynamic && !allowDynamic {
 		return fmt.Errorf("cannot delete dynamic peer: %w", domain.ErrInvalidData)
 	}
 

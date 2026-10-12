@@ -123,6 +123,7 @@ func TestImportPeer_AddressMapping(t *testing.T) {
 
 			savedPeer := db.savedPeers["peer1"]
 			assert.NotNil(t, savedPeer)
+			assert.Nil(t, savedPeer.ExpiresAt)
 
 			// Check interface addresses
 			actualInterface := make([]string, len(savedPeer.Interface.Addresses))
