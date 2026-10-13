@@ -376,6 +376,7 @@ func (m Manager) UpdatePeer(ctx context.Context, peer *domain.Peer) (*domain.Pee
 
 	// A peer's expiry is fixed at creation time.
 	peer.ExpiresAt = existingPeer.ExpiresAt
+	peer.ExpiryWarningAttemptedAt = existingPeer.ExpiryWarningAttemptedAt
 
 	// handle peer identifier change (new public key)
 	if existingPeer.Identifier != domain.PeerIdentifier(peer.Interface.PublicKey) {

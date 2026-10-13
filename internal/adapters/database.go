@@ -690,6 +690,19 @@ func (r *SqlRepo) SavePeer(
 	return nil
 }
 
+// MarkPeerExpiryWarningAttempted records the first expiry warning attempt without creating a missing peer.
+func (r *SqlRepo) MarkPeerExpiryWarningAttempted(
+	ctx context.Context,
+	id domain.PeerIdentifier,
+	attemptedAt time.Time,
+) error {
+	return r.db.WithContext(ctx).
+		Model(&domain.Peer{}).
+		Where("identifier = ? AND expiry_warning_attempted_at IS NULL", id).
+		UpdateColumn("expiry_warning_attempted_at", attemptedAt).
+		Error
+}
+
 func (r *SqlRepo) getOrCreatePeer(ui *domain.ContextUserInfo, tx *gorm.DB, id domain.PeerIdentifier) (
 	*domain.Peer,
 	error,

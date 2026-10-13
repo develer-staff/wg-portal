@@ -2,6 +2,8 @@ package wireguard
 
 import (
 	"context"
+	"errors"
+	"sync"
 	"testing"
 	"time"
 
@@ -15,6 +17,16 @@ type mockBus struct{}
 
 func (f *mockBus) Publish(topic string, args ...any)    {}
 func (f *mockBus) Subscribe(topic string, fn any) error { return nil }
+
+type mockExpiryNotifier struct {
+	attemptedPeers []domain.PeerIdentifier
+	err            error
+}
+
+func (f *mockExpiryNotifier) AttemptPeerExpiryWarning(_ context.Context, peer *domain.Peer) error {
+	f.attemptedPeers = append(f.attemptedPeers, peer.Identifier)
+	return f.err
+}
 
 type mockController struct {
 	deletedPeers []domain.PeerIdentifier
@@ -66,10 +78,11 @@ func (f *mockController) PingAddresses(_ context.Context, _ string) (*domain.Pin
 }
 
 type mockDB struct {
-	savedPeers map[domain.PeerIdentifier]*domain.Peer
-	iface      *domain.Interface
-	interfaces []domain.Interface
-	users      []domain.User
+	savedPeers        map[domain.PeerIdentifier]*domain.Peer
+	iface             *domain.Interface
+	interfaces        []domain.Interface
+	users             []domain.User
+	warningAttemptErr error
 }
 
 func (f *mockDB) GetInterface(ctx context.Context, id domain.InterfaceIdentifier) (*domain.Interface, error) {
@@ -146,6 +159,19 @@ func (f *mockDB) SavePeer(
 	f.savedPeers[updated.Identifier] = updated
 	return nil
 }
+func (f *mockDB) MarkPeerExpiryWarningAttempted(
+	_ context.Context,
+	id domain.PeerIdentifier,
+	attemptedAt time.Time,
+) error {
+	if f.warningAttemptErr != nil {
+		return f.warningAttemptErr
+	}
+	if peer := f.savedPeers[id]; peer != nil && peer.ExpiryWarningAttemptedAt == nil {
+		peer.ExpiryWarningAttemptedAt = &attemptedAt
+	}
+	return nil
+}
 func (f *mockDB) DeletePeer(ctx context.Context, id domain.PeerIdentifier) error {
 	delete(f.savedPeers, id)
 	return nil
@@ -203,12 +229,14 @@ func TestCreatePeer_SetsIdentifier_FromPublicKey(t *testing.T) {
 	ctx := domain.SetUserInfo(context.Background(), &domain.ContextUserInfo{Id: userId, IsAdmin: false})
 
 	pubKey := "TEST_PUBLIC_KEY_ABC123"
+	previousWarningAttempt := time.Now().Add(-time.Hour)
 
 	input := &domain.Peer{
-		Identifier:          "should_be_overwritten",
-		UserIdentifier:      userId,
-		InterfaceIdentifier: domain.InterfaceIdentifier("wg0"),
-		ExpiresAt:           new(time.Time),
+		Identifier:               "should_be_overwritten",
+		UserIdentifier:           userId,
+		InterfaceIdentifier:      domain.InterfaceIdentifier("wg0"),
+		ExpiresAt:                new(time.Time),
+		ExpiryWarningAttemptedAt: &previousWarningAttempt,
 		Interface: domain.PeerInterfaceConfig{
 			KeyPair: domain.KeyPair{PublicKey: pubKey},
 		},
@@ -237,6 +265,9 @@ func TestCreatePeer_SetsIdentifier_FromPublicKey(t *testing.T) {
 		out.ExpiresAt.Before(earliestExpiry) ||
 		out.ExpiresAt.After(latestExpiry) {
 		t.Fatalf("expected expiry between %s and %s, got %v", earliestExpiry, latestExpiry, out.ExpiresAt)
+	}
+	if out.ExpiryWarningAttemptedAt != nil {
+		t.Fatalf("expected warning attempt to be reset, got %v", out.ExpiryWarningAttemptedAt)
 	}
 }
 
@@ -295,11 +326,13 @@ func TestUpdatePeer_PreservesExpiration(t *testing.T) {
 			}
 			originalExpiry := time.Now().Add(24 * time.Hour)
 			attemptedExpiry := time.Now().Add(48 * time.Hour)
+			originalWarningAttempt := time.Now().Add(-time.Hour)
 			existingPeer := &domain.Peer{
-				Identifier:          "original-key",
-				UserIdentifier:      "user1",
-				InterfaceIdentifier: "wg0",
-				ExpiresAt:           &originalExpiry,
+				Identifier:               "original-key",
+				UserIdentifier:           "user1",
+				InterfaceIdentifier:      "wg0",
+				ExpiresAt:                &originalExpiry,
+				ExpiryWarningAttemptedAt: &originalWarningAttempt,
 				Interface: domain.PeerInterfaceConfig{
 					KeyPair: domain.KeyPair{PublicKey: "original-key"},
 				},
@@ -315,6 +348,7 @@ func TestUpdatePeer_PreservesExpiration(t *testing.T) {
 
 			update := *existingPeer
 			update.ExpiresAt = &attemptedExpiry
+			update.ExpiryWarningAttemptedAt = nil
 			update.Interface.PublicKey = tt.newPublicKey
 
 			updated, err := m.UpdatePeer(ctx, &update)
@@ -324,6 +358,11 @@ func TestUpdatePeer_PreservesExpiration(t *testing.T) {
 			}
 			if updated.ExpiresAt == nil || !updated.ExpiresAt.Equal(originalExpiry) {
 				t.Fatalf("expected expiry %s to be preserved, got %v", originalExpiry, updated.ExpiresAt)
+			}
+			if updated.ExpiryWarningAttemptedAt == nil ||
+				!updated.ExpiryWarningAttemptedAt.Equal(originalWarningAttempt) {
+				t.Fatalf("expected warning attempt %s to be preserved, got %v",
+					originalWarningAttempt, updated.ExpiryWarningAttemptedAt)
 			}
 		})
 	}
@@ -397,6 +436,133 @@ func TestCheckExpiredPeers_DeletesExpiredPeers(t *testing.T) {
 	}
 	if len(controller.deletedPeers) != 2 {
 		t.Fatalf("expected 2 controller deletions, got %d", len(controller.deletedPeers))
+	}
+}
+
+func TestCheckExpiredPeers_AttemptsWarningDuringFinalWeek(t *testing.T) {
+	expiresAt := time.Now().Add(6 * 24 * time.Hour)
+	disabledAt := time.Now().Add(-time.Hour)
+	peer := domain.Peer{
+		Identifier:          "expiring",
+		InterfaceIdentifier: "wg0",
+		ExpiresAt:           &expiresAt,
+		Disabled:            &disabledAt,
+	}
+	db := &mockDB{
+		savedPeers: map[domain.PeerIdentifier]*domain.Peer{
+			peer.Identifier: &peer,
+		},
+	}
+	notifier := &mockExpiryNotifier{}
+	m := Manager{
+		db:             db,
+		expiryNotifier: notifier,
+	}
+
+	earliestAttempt := time.Now()
+	m.checkExpiredPeers(context.Background(), []domain.Peer{peer})
+	latestAttempt := time.Now()
+
+	if len(notifier.attemptedPeers) != 1 || notifier.attemptedPeers[0] != peer.Identifier {
+		t.Fatalf("expected warning attempt for %q, got %v", peer.Identifier, notifier.attemptedPeers)
+	}
+	attemptedAt := db.savedPeers[peer.Identifier].ExpiryWarningAttemptedAt
+	if attemptedAt == nil || attemptedAt.Before(earliestAttempt) || attemptedAt.After(latestAttempt) {
+		t.Fatalf("expected attempted-at between %s and %s, got %v",
+			earliestAttempt, latestAttempt, attemptedAt)
+	}
+}
+
+func TestCheckExpiredPeers_DoesNotRetryFailedWarning(t *testing.T) {
+	expiresAt := time.Now().Add(6 * 24 * time.Hour)
+	peer := domain.Peer{
+		Identifier:          "expiring",
+		InterfaceIdentifier: "wg0",
+		ExpiresAt:           &expiresAt,
+	}
+	db := &mockDB{
+		savedPeers: map[domain.PeerIdentifier]*domain.Peer{
+			peer.Identifier: &peer,
+		},
+	}
+	notifier := &mockExpiryNotifier{err: errors.New("smtp unavailable")}
+	m := Manager{
+		db:             db,
+		expiryNotifier: notifier,
+	}
+
+	m.checkExpiredPeers(context.Background(), []domain.Peer{peer})
+	m.checkExpiredPeers(context.Background(), []domain.Peer{*db.savedPeers[peer.Identifier]})
+
+	if len(notifier.attemptedPeers) != 1 {
+		t.Fatalf("expected exactly 1 warning attempt, got %d", len(notifier.attemptedPeers))
+	}
+	if db.savedPeers[peer.Identifier].ExpiryWarningAttemptedAt == nil {
+		t.Fatal("expected failed warning attempt to be recorded")
+	}
+}
+
+func TestCheckExpiredPeers_DoesNotRetryAfterMarkerWriteFailure(t *testing.T) {
+	expiresAt := time.Now().Add(6 * 24 * time.Hour)
+	peer := domain.Peer{
+		Identifier:          "expiring",
+		InterfaceIdentifier: "wg0",
+		ExpiresAt:           &expiresAt,
+	}
+	db := &mockDB{
+		savedPeers: map[domain.PeerIdentifier]*domain.Peer{
+			peer.Identifier: &peer,
+		},
+		warningAttemptErr: errors.New("database unavailable"),
+	}
+	notifier := &mockExpiryNotifier{}
+	m := Manager{
+		db:                    db,
+		expiryNotifier:        notifier,
+		expiryWarningAttempts: &sync.Map{},
+	}
+
+	m.checkExpiredPeers(context.Background(), []domain.Peer{peer})
+	m.checkExpiredPeers(context.Background(), []domain.Peer{peer})
+
+	if len(notifier.attemptedPeers) != 1 {
+		t.Fatalf("expected exactly 1 warning attempt, got %d", len(notifier.attemptedPeers))
+	}
+}
+
+func TestCheckExpiredPeers_SkipsIneligibleWarnings(t *testing.T) {
+	now := time.Now()
+	tooEarly := now.Add(8 * 24 * time.Hour)
+	withinFinalWeek := now.Add(6 * 24 * time.Hour)
+	previousAttempt := now.Add(-time.Hour)
+	peers := []domain.Peer{
+		{
+			Identifier: "too-early",
+			ExpiresAt:  &tooEarly,
+		},
+		{
+			Identifier: "permanent",
+		},
+		{
+			Identifier:               "already-attempted",
+			ExpiresAt:                &withinFinalWeek,
+			ExpiryWarningAttemptedAt: &previousAttempt,
+		},
+	}
+	savedPeers := make(map[domain.PeerIdentifier]*domain.Peer, len(peers))
+	for i := range peers {
+		savedPeers[peers[i].Identifier] = &peers[i]
+	}
+	notifier := &mockExpiryNotifier{}
+	m := Manager{
+		db:             &mockDB{savedPeers: savedPeers},
+		expiryNotifier: notifier,
+	}
+
+	m.checkExpiredPeers(context.Background(), peers)
+
+	if len(notifier.attemptedPeers) != 0 {
+		t.Fatalf("expected no warning attempts, got %v", notifier.attemptedPeers)
 	}
 }
 

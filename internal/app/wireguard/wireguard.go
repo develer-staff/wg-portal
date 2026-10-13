@@ -32,6 +32,11 @@ type InterfaceAndPeerDatabaseRepo interface {
 		id domain.PeerIdentifier,
 		updateFunc func(in *domain.Peer) (*domain.Peer, error),
 	) error
+	MarkPeerExpiryWarningAttempted(
+		ctx context.Context,
+		id domain.PeerIdentifier,
+		attemptedAt time.Time,
+	) error
 	DeletePeer(ctx context.Context, id domain.PeerIdentifier) error
 	GetPeer(ctx context.Context, id domain.PeerIdentifier) (*domain.Peer, error)
 	GetUsedIpsPerSubnet(ctx context.Context, subnets []domain.Cidr) (map[domain.Cidr][]domain.Cidr, error)
@@ -52,16 +57,24 @@ type EventBus interface {
 	Subscribe(topic string, fn any) error
 }
 
+type PeerExpiryNotifier interface {
+	AttemptPeerExpiryWarning(ctx context.Context, peer *domain.Peer) error
+}
+
 // endregion dependencies
 
-type Manager struct {
-	cfg *config.Config
-	bus EventBus
-	db  InterfaceAndPeerDatabaseRepo
-	wg  *ControllerManager
+const peerExpiryWarningLeadTime = 7 * 24 * time.Hour
 
-	userLockMap      *sync.Map
-	interfaceLockMap *sync.Map
+type Manager struct {
+	cfg            *config.Config
+	bus            EventBus
+	db             InterfaceAndPeerDatabaseRepo
+	wg             *ControllerManager
+	expiryNotifier PeerExpiryNotifier
+
+	userLockMap           *sync.Map
+	interfaceLockMap      *sync.Map
+	expiryWarningAttempts *sync.Map
 }
 
 func NewWireGuardManager(
@@ -69,14 +82,17 @@ func NewWireGuardManager(
 	bus EventBus,
 	wg *ControllerManager,
 	db InterfaceAndPeerDatabaseRepo,
+	expiryNotifier PeerExpiryNotifier,
 ) (*Manager, error) {
 	m := &Manager{
-		cfg:              cfg,
-		bus:              bus,
-		wg:               wg,
-		db:               db,
-		userLockMap:      &sync.Map{},
-		interfaceLockMap: &sync.Map{},
+		cfg:                   cfg,
+		bus:                   bus,
+		wg:                    wg,
+		db:                    db,
+		expiryNotifier:        expiryNotifier,
+		userLockMap:           &sync.Map{},
+		interfaceLockMap:      &sync.Map{},
+		expiryWarningAttempts: &sync.Map{},
 	}
 
 	m.connectToMessageBus()
@@ -333,13 +349,36 @@ func (m Manager) runExpiredPeersCheck(ctx context.Context) {
 
 func (m Manager) checkExpiredPeers(ctx context.Context, peers []domain.Peer) {
 	for _, peer := range peers {
-		if !peer.IsExpired() {
+		if peer.IsExpired() {
+			slog.Info("peer has expired, deleting", "peer", peer.Identifier)
+			if err := m.deleteExpiredPeer(ctx, peer.Identifier); err != nil {
+				slog.Error("failed to delete expired peer", "peer", peer.Identifier, "error", err)
+			}
 			continue
 		}
 
-		slog.Info("peer has expired, deleting", "peer", peer.Identifier)
-		if err := m.deleteExpiredPeer(ctx, peer.Identifier); err != nil {
-			slog.Error("failed to delete expired peer", "peer", peer.Identifier, "error", err)
+		now := time.Now()
+		if m.expiryNotifier == nil || !peer.IsExpiryWarningDue(now, peerExpiryWarningLeadTime) {
+			continue
+		}
+		if m.expiryWarningAttempts != nil {
+			if _, attempted := m.expiryWarningAttempts.LoadOrStore(peer.Identifier, struct{}{}); attempted {
+				continue
+			}
+		}
+
+		if err := m.expiryNotifier.AttemptPeerExpiryWarning(ctx, &peer); err != nil {
+			slog.Error("failed to send peer expiry warning", "peer", peer.Identifier, "error", err)
+		}
+
+		attemptedAt := time.Now()
+		if err := m.db.MarkPeerExpiryWarningAttempted(ctx, peer.Identifier, attemptedAt); err != nil {
+			slog.Error("failed to record peer expiry warning attempt", "peer", peer.Identifier, "error", err)
+			continue
+		}
+
+		if m.expiryWarningAttempts != nil {
+			m.expiryWarningAttempts.Delete(peer.Identifier)
 		}
 	}
 }

@@ -43,16 +43,17 @@ type Peer struct {
 
 	// WG Portal specific
 
-	DisplayName          string              // a nice display name/ description for the peer
-	Identifier           PeerIdentifier      `gorm:"primaryKey;column:identifier"`      // peer unique identifier
-	UserIdentifier       UserIdentifier      `gorm:"index;column:user_identifier"`      // the owner
-	User                 *User               `gorm:"-"`                                 // the owner user object; loaded automatically after fetch
-	InterfaceIdentifier  InterfaceIdentifier `gorm:"index;column:interface_identifier"` // the interface id
-	Disabled             *time.Time          `gorm:"column:disabled"`                   // if this field is set, the peer is disabled
-	DisabledReason       string              // the reason why the peer has been disabled
-	ExpiresAt            *time.Time          `gorm:"column:expires_at"`         // expiry dates for peers
-	Notes                string              `form:"notes" binding:"omitempty"` // a note field for peers
-	AutomaticallyCreated bool                `gorm:"column:auto_created"`       // specifies if the peer was automatically created
+	DisplayName              string              // a nice display name/ description for the peer
+	Identifier               PeerIdentifier      `gorm:"primaryKey;column:identifier"`      // peer unique identifier
+	UserIdentifier           UserIdentifier      `gorm:"index;column:user_identifier"`      // the owner
+	User                     *User               `gorm:"-"`                                 // the owner user object; loaded automatically after fetch
+	InterfaceIdentifier      InterfaceIdentifier `gorm:"index;column:interface_identifier"` // the interface id
+	Disabled                 *time.Time          `gorm:"column:disabled"`                   // if this field is set, the peer is disabled
+	DisabledReason           string              // the reason why the peer has been disabled
+	ExpiresAt                *time.Time          `gorm:"column:expires_at"`                  // expiry dates for peers
+	ExpiryWarningAttemptedAt *time.Time          `gorm:"column:expiry_warning_attempted_at"` // last expiry warning attempt
+	Notes                    string              `form:"notes" binding:"omitempty"`          // a note field for peers
+	AutomaticallyCreated     bool                `gorm:"column:auto_created"`                // specifies if the peer was automatically created
 
 	// Interface settings for the peer, used to generate the [interface] section in the peer config file
 	Interface PeerInterfaceConfig `gorm:"embedded"`
@@ -72,6 +73,14 @@ func (p *Peer) IsExpired() bool {
 		return true
 	}
 	return false
+}
+
+func (p *Peer) IsExpiryWarningDue(now time.Time, leadTime time.Duration) bool {
+	if p.ExpiresAt == nil || p.ExpiryWarningAttemptedAt != nil {
+		return false
+	}
+
+	return p.ExpiresAt.After(now) && !p.ExpiresAt.After(now.Add(leadTime))
 }
 
 func (p *Peer) CheckAliveAddress() string {

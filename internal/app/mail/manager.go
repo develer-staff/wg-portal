@@ -3,10 +3,12 @@ package mail
 import (
 	"context"
 	"fmt"
+	"html"
 	"io"
 	"log/slog"
 	"net/mail"
 	"net/url"
+	"time"
 
 	"github.com/h44z/wg-portal/internal/config"
 	"github.com/h44z/wg-portal/internal/domain"
@@ -117,6 +119,58 @@ func (m Manager) SendPeerEmail(ctx context.Context, linkOnly bool, style string,
 		}
 	}
 
+	return nil
+}
+
+// AttemptPeerExpiryWarning sends an expiry warning when the peer has a resolvable email address.
+func (m Manager) AttemptPeerExpiryWarning(ctx context.Context, peer *domain.Peer) error {
+	if peer.ExpiresAt == nil {
+		return fmt.Errorf("peer %s has no expiry date", peer.Identifier)
+	}
+
+	email, _ := m.resolveEmail(ctx, peer)
+	if email == "" {
+		slog.Info("skipping peer expiry warning because no recipient is available", "peer", peer.Identifier)
+		return nil
+	}
+
+	peerName := peer.DisplayName
+	if peerName == "" {
+		peerName = "Unnamed peer"
+	}
+	rome, err := time.LoadLocation("Europe/Rome")
+	if err != nil {
+		return fmt.Errorf("failed to load Europe/Rome timezone: %w", err)
+	}
+	expiresAt := peer.ExpiresAt.In(rome).Format("02 Jan 2006 15:04 MST")
+	portalURL := m.cfg.Web.ExternalUrl + m.cfg.Web.BasePath
+
+	body := fmt.Sprintf(
+		"Develer VPN\n\nYour VPN connection %q expires on %s.\n\nOpen the portal: %s\n",
+		peerName,
+		expiresAt,
+		portalURL,
+	)
+	options := domain.MailOptions{
+		HtmlBody: fmt.Sprintf(
+			"<p><strong>Develer VPN</strong></p><p>Your VPN connection <strong>%s</strong> expires on <strong>%s</strong>.</p><p><a href=\"%s\">Open the portal</a></p>",
+			html.EscapeString(peerName),
+			html.EscapeString(expiresAt),
+			html.EscapeString(portalURL),
+		),
+	}
+
+	if err := m.mailer.Send(
+		ctx,
+		"Develer VPN expiration warning",
+		body,
+		[]string{email},
+		&options,
+	); err != nil {
+		return fmt.Errorf("failed to send expiry warning for peer %s: %w", peer.Identifier, err)
+	}
+
+	slog.Info("sent peer expiry warning", "peer", peer.Identifier, "recipient", email)
 	return nil
 }
 
